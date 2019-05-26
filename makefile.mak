@@ -100,7 +100,15 @@ HDR_FIELS = $(foreach dir,$(INC_DIRS), $(wildcard $(dir)/*.h))
 OBJS = $(C_OBJTS) $(ASM_OBJTS) $(LIB_OBJTS)
 
 
-	
+#-----------------------------------------------------------------------------------
+
+%.doj : %.c	
+	@$(ECHO) "Compiling $< -->> $@"
+	$(CC) $(CFLAGS) $(INC_DIRS) $< -o $@
+
+%.doj : %.asm
+	@$(ECHO) "Assembling $< -->> $@"
+	$(AS) $(ASMFLAGS) $(INC_DIRS) $< -o $@	
 
 #-----------------------------------------------------------------------------------
 
@@ -122,17 +130,7 @@ all:
 
 .PHONY: dsp_build
 dsp_build: $(DXE_FILE)
-
-
-#-----------------------------------------------------------------------------------
-%.doj : %.c
-	@$(ECHO) "Compiling $<"
-	$(CC) $(CFLAGS) $(INC_DIRS) $< -o $@
-
-%.doj : %.asm
-	@$(ECHO) "Assembling $<"
-	$(AS) $(ASMFLAGS) $(INC_DIRS) $< -o $@
-
+	
 $(DXE_FILE) : $(OBJS) $(LDF_FILE)
 	$(CC) $(OBJS) -T $(LDF_FILE) $(LINKFLAGS) -o $@
 

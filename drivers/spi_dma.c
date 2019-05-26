@@ -3,63 +3,25 @@
 //File Name: spi_dma.c
 //Notes:
 //Author: wu, zhigang
-//Date:   Jul-15-2017
+//Date:   Jul-19-2019
 //*************************************************************************************
 //*************************************************************************************
-
+#include <defBF533.h>
 #include <defbf533.h>
 #include <string.h>
 #include <math.h>
+#include "sys_cfg.h"
+
 #include "clocks.h"
 #include "freeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 #include "spi_dma.h"
 #include "ad1836.h"
+#include "spi_api.h"
 
 
-
-
-SPI_DMA_REG spi_dma_cfg = SPI_REG_INIT;
-
-
-static void spi_init(SPI_DMA_CONTEXT *pSpiCtx)
-{
-    pSpiCtx->reg = &spi_dma_cfg;
-
-    //=============================================
-    // Config SPI PORT register
-    
-    //Enable PF4
-    mmr_write16(pSpiCtx->reg->spi_flg, FLS4);
-
-    //Set Baud Rate SCK = HCLK/(2*SPIBAUD) = 2MHz
-    mmr_write16(pSpiCtx->reg->spi_baud, 16);
-
-    //SPI DMA Write; 16-bit data; MSB first; SPI Master
-    mmr_write16(pSpiCtx->reg->spi_ctl, TDBR_DMA | SIZE | MSTR);
-
-    //DMA5 for SPI
-    mmr_write16(pSpiCtx->reg->dma_pmap, PMAP_SPI);
-
-    //=============================================
-    // Config SPI DMA register
-
-    // 16-bit
-    mmr_write16(pSpiCtx->reg->config, WDSIZE_16);
-
-    // Start Address
-    mmr_write32(pSpiCtx->reg->start_addr, (uint32_t)sCodecAD1836TxRegs);
-
-    // X Count
-    mmr_write16(pSpiCtx->reg->x_count, CODEC_AD1836_REGS_LENGTH);
-
-    // X Modify: 16-Bit
-    mmr_write16(pSpiCtx->reg->x_modify, 2);
-}
-
-
-static void spi_enable(SPI_DMA_CONTEXT *pSpiCtx)
+void spi_enable(struct spi_ctx *pSpiCtx)
 {
     // Enable DMA
     mmr_write16(pSpiCtx->reg->config, (mmr_read16(pSpiCtx->reg->config) | DMAEN) );
@@ -68,77 +30,134 @@ static void spi_enable(SPI_DMA_CONTEXT *pSpiCtx)
     mmr_write16(pSpiCtx->reg->spi_ctl, (mmr_read16(pSpiCtx->reg->spi_ctl) | SPE) );
 }
 
-static void spi_disable(SPI_DMA_CONTEXT *pSpiCtx)
+static void spi_disable(struct spi_ctx *pSpiCtx)
 {
-    // Enable DMA
+    // Disable DMA
     mmr_write16(pSpiCtx->reg->config, ( mmr_read16(pSpiCtx->reg->config) | (~DMAEN) ) );
 
-    // Enable SPI
+    // Disable SPI
     mmr_write16(pSpiCtx->reg->spi_ctl, (0x0000) );
 }
 
 //==========================================================================================
 
-static void spi_open(SPI_DMA_CONTEXT *pSpiCtx)
+EX_INTERRUPT_HANDLER(spi_dma_isr)
 {
-    pSpiCtx->reg = &spi_dma_cfg;
+    uint32_t ipend;
+    uint32_t sic_isr;
 
-    //=============================================
-    // Config SPI PORT register
-    
-    //Enable PF4
-    mmr_write16(pSpiCtx->reg->spi_flg, FLS4);
-
-    //Set Baud Rate SCK = HCLK/(2*SPIBAUD) = 2MHz
-    mmr_write16(pSpiCtx->reg->spi_baud, 16);
-
-    //SPI DMA Write; 16-bit data; MSB first; SPI Master
-    mmr_write16(pSpiCtx->reg->spi_ctl, TDBR_DMA | SIZE | MSTR);
-
-    //DMA5 for SPI
-    mmr_write16(pSpiCtx->reg->dma_pmap, PMAP_SPI);
-
-    //=============================================
-    // Config SPI DMA register
-
-    // 16-bit
-    mmr_write16(pSpiCtx->reg->config, WDSIZE_16);
-
-    // Start Address
-    mmr_write32(pSpiCtx->reg->start_addr, (uint32_t)sCodecAD1836TxRegs);
-
-    // X Count
-    mmr_write16(pSpiCtx->reg->x_count, CODEC_AD1836_REGS_LENGTH);
-
-    // X Modify: 16-Bit
-    mmr_write16(pSpiCtx->reg->x_modify, 2);
+    ipend = mmr_read32(pIPEND);
 }
 
-static void spi_close(SPI_DMA_CONTEXT *pSpiCtx)
-{
-    // Enable DMA
-    mmr_write16(pSpiCtx->reg->config, ( mmr_read16(pSpiCtx->reg->config) | (~DMAEN) ) );
 
-    // Enable SPI
-    mmr_write16(pSpiCtx->reg->spi_ctl, (0x0000) );
+static void spi_ioctl(struct spi_dev *dev, uint16_t cmd, uint32_t val)
+{
+	struct spi_ctx *pSpiCtx = (struct spi_ctx *)dev->ctx;
+
+	switch(cmd)
+	{
+	case SPI_CFG_FLG:
+		mmr_write16(pSpiCtx->reg->spi_flg, (uint16_t)val);
+		break;
+	case SPI_CFG_BAUDRATE:
+		mmr_write16(pSpiCtx->reg->spi_baud, (uint16_t)val);
+		break;
+	case SPI_CFG_CTRL:
+		mmr_write16(pSpiCtx->reg->spi_ctl, (uint16_t)val);
+		break;
+	case SPI_CFG_PMAP:
+		mmr_write16(pSpiCtx->reg->dma_pmap, (uint16_t)val);
+		break;
+	case SPI_DMA_CFG_SADDR:
+		mmr_write32(pSpiCtx->reg->start_addr, (uint32_t)val);
+		break;
+	case SPI_DMA_CFG_XCOUNT:
+		mmr_write16(pSpiCtx->reg->x_count, (uint16_t)val);
+		break;
+	case SPI_DMA_CFG_WDSIZE:
+		mmr_write16(pSpiCtx->reg->config, (uint16_t)val);
+		break;
+	case SPI_DMA_CFG_XMODIFY:
+		mmr_write16(pSpiCtx->reg->x_modify, (uint16_t)val);
+		break;
+	default:
+		break;
+	}
 }
 
-static void spi_read(SPI_DMA_CONTEXT *pSpiCtx, void *buf, int32_t len)
+
+//confirm which SPI port will be opened
+static void spi_open(struct spi_dev *dev, uint8_t port)
 {
+	struct spi_ctx *pSpiCtx = (struct spi_ctx *)dev;
+
+	dev->xSem = xSemaphoreCreateBinary();
+	
+    //register the spi rx/tx interrupt
+//	register_handler_ex(ik_ivg5, (ex_handler_fn)spi_dma_isr, EX_INT_ENABLE);    //tx int
+//	register_handler_ex(ik_ivg6, (ex_handler_fn)spi_dma_isr, EX_INT_ENABLE);    //rx int
+
+	//spi_enable(pSpiCtx);
 }
 
-static void spi_write(SPI_DMA_CONTEXT *pSpiCtx, void *buf, int32_t len)
+//confirm which SPI port will be closed
+static void spi_close(struct spi_dev *dev, uint8_t port)
 {
+	struct spi_ctx *pSpiCtx = (struct spi_ctx *)dev;
+
+	spi_disable(pSpiCtx);
 }
 
-static void spi_ioctl(SPI_DMA_CONTEXT *pSpiCtx)
+
+//do the spi read operation
+static int32_t spi_read(struct spi_dev *dev, uint8_t *buf, uint32_t len)
 {
+	if (xSemaphoreTake(dev->xSem, 0) == pdTRUE)
+	{
+	    //Config Start Address
+		spi_ioctl(dev, SPI_DMA_CFG_SADDR, (uint32_t)buf);
+
+	    //Config X Count
+		spi_ioctl(dev, SPI_DMA_CFG_XCOUNT, len);
+
+		//Start DMA RX
+	    spi_enable((struct spi_ctx *)dev->ctx);
+		
+		xSemaphoreGive(dev->xSem);
+
+		return 0;
+	}
+	else
+		return -1;
 }
 
-struct spi spi_ops = {
+//do the spi write operation
+static int32_t spi_write(struct spi_dev *dev, uint8_t *buf, uint32_t len)
+{
+	if (xSemaphoreTake(dev->xSem, 0) == pdTRUE)
+	{
+	    //Config TX Address
+		spi_ioctl(dev, SPI_DMA_CFG_SADDR, (uint32_t)buf);
+
+	    //Config X Count
+		spi_ioctl(dev, SPI_DMA_CFG_XCOUNT, len);
+
+		//Start DMA TX
+	    spi_enable((struct spi_ctx *)dev->ctx);
+
+		xSemaphoreGive(dev->xSem);
+		
+		return 0;
+	}
+	else
+		return -1;
+}
+
+const struct spi_ops spi_dev_api = {
     .open = spi_open,
     .close = spi_close,
     .read = spi_read,
     .write = spi_write,
     .ioctl = spi_ioctl,
 };
+

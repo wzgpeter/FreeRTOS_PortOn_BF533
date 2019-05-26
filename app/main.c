@@ -17,6 +17,7 @@
 #include "sys_status.h"
 
 #include "FreeRTOS.h"
+#include "semphr.h"
 #include "task.h"
 #include "ad1836.h"
 
@@ -24,6 +25,7 @@
 #include "ledTask.h"
 #include "uartTask.h"
 #include "sportTask.h"
+#include "interrupt_register.h"
 
 
 
@@ -54,11 +56,16 @@ void vSetupClockForRunTimeStats( void )
  ******************************************************************************/
 void main(void)
 {
+	SemaphoreHandle_t xsem;
     sysreg_write(reg_SYSCFG, 0x32);	
 	Init_PLL();
 	Init_EBIU();
 	Init_Flags();
     Init_Flash();
+
+	xsem = xSemaphoreCreateBinary();
+	interrupt_handler_init(xsem);
+		
     Init_AD1836();
 
 	/* Create the tasks defined within this file. */

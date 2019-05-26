@@ -6,11 +6,18 @@
 //Date:   Jul-15-2017
 //*************************************************************************************
 //*************************************************************************************
+#include <stdlib.h>
+#include <string.h>
 #include <defBF533.h>
 #include "stdint.h"
 #include "initialise.h"
+#include "clocks.h"
+#include "freeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
 #include "ad1836.h"
-#include "spi_dma.h"
+#include "spi_api.h"
 
 
 // names for codec registers, used for iCodec1836TxRegs[]
@@ -66,16 +73,27 @@ void resetAD1836(void)
 
 void enableAD1836(void)
 {
-    SPI_DMA_CONTEXT SpiCtx = {0};
+	struct spi_dev *dev;
     uint32_t i;
 
-    spi_init(&SpiCtx);
-    spi_enable(&SpiCtx);
+	// open the SPI port
+	dev = spi_get(SPI, SPI0);
+	sbus_open(dev, SPI0);
+
+	// Config the SPI as write mode
+	i = 0;
+	while(spi_write_cfg[i].cmd != SPI_CFG_END)
+	{
+		sbus_ioctl(dev, spi_write_cfg[i].cmd, spi_write_cfg[i].val);
+		i++;
+	}
+
+	// config AD by SPI bus
+	sbus_write(dev, (uint8_t *)sCodecAD1836TxRegs, CODEC_AD1836_REGS_LENGTH);
 
     //Wait for transmitting finished
-    for(i=0; i<0xF000; i++) asm("nop;");
-
-    //spi_disable(&SpiCtx);
+    for(i=0; i<0xF000; i++) 
+		asm("nop;");
 }
 
 

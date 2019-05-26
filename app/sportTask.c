@@ -10,41 +10,54 @@
 #include "task.h"
 #include "semphr.h"
 #include "sportTask.h"
-#include "sport_dma.h"
-
+#include "sport_api.h"
+#include "interrupt_register.h"
 
 TaskHandle_t xSportTaskHandle = NULL;
-//int32_t AudioProcBuffer[RX_WORDS_PER_BLOCK];
-
 
 void vSPORTTask(void *pvParameters)
 {
     uint32_t ulNotifiedValue;
-    BaseType_t return_code;
+    BaseType_t ret;
     uint8_t option_flag = SPORT_DMA_I2S_RX_INIT | SPORT_DMA_I2S_TX_INIT;
     uint32_t i;
 
-    sport_ctx.mode = SPORT_DMA_MODE_I2S_RX | SPORT_DMA_MODE_I2S_TX;
-    sport_dma_init(&sport_ctx, option_flag, SPORT0);
+	register_interrupt_handler(&sport0_dma1_rx_int_cfg);
+	register_interrupt_handler(&sport0_dma2_tx_int_cfg);
 
-    sport_dma_enable(&sport_ctx, SPORT0);
-    
+	//init the Tx and Rx SPORT port0
+	struct sport_dev *dev = sport_get(SPORT, SPORT0);
+
+	//config the sport rx registers
+	i = 0;
+	while(sport0_rx_cfg[i].cmd != SPORT_CFG_END)
+	{
+		aud_ioctl(dev, sport0_rx_cfg[i].cmd, sport0_rx_cfg[i].val);
+		i++;
+	}
+
+	//config the sport tx registers
+	i = 0;
+	while(sport0_tx_cfg[i].cmd != SPORT_CFG_END)
+	{
+		aud_ioctl(dev, sport0_tx_cfg[i].cmd, sport0_tx_cfg[i].val);
+		i++;
+	}
+
+	aud_ioctl(dev, SPORT_MODE, SPORT_DMA_MODE_I2S_TX | SPORT_DMA_MODE_I2S_RX);
+	aud_ioctl(dev, SPORT_DIRT, SPORT_DMA_WRITE | SPORT_DMA_READ);
+	aud_open(dev, SPORT0);
+
     while(1)
     {
-        return_code = xTaskNotifyWait(pdFAIL,
-                                      ULONG_MAX,
-                                      &ulNotifiedValue,
-                                      portMAX_DELAY
-                                      );
-        if(return_code != pdFALSE)
+        ret = xTaskNotifyWait(pdFAIL,
+                              ULONG_MAX,
+                              &ulNotifiedValue,
+                              portMAX_DELAY
+                              );
+        if(ret != pdFALSE)
         {
-            for(i=0; i<RX_WORDS_PER_BLOCK; i++)
-            {
-                AudioTxBuffer[sport_ctx.txblk_ptr][i] = AudioRxBuffer[sport_ctx.rxblk_ptr][i];
-            }
-
-            sport_ctx.rxblk_ptr ^= 1;
-            sport_ctx.txblk_ptr ^= 1;
+			sport_proc(dev);
         }
     }
 }

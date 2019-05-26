@@ -10,50 +10,12 @@
 #define __SPORT_DMA_H__
 
 
-#define SPORT0                      (0)
-#define SPORT1                      (1)
 #define NUM_PHYSICAL_SPORT_PORTS    (2)
 
 
 #define SPORT_RX_BIT      (0x1)
 #define SPORT_TX_BIT      (0x2)
 #define SPORT_ERR_BIT     (0x4)
-
-
-#define SPORT0_ERR_INT      (1<<3)
-#define SPORT0_DMA1_RX_INT  (1<<9)
-#define SPORT0_DMA2_TX_INT  (1<<10)
-#define SPORT1_ERR_INT      (1<<4)
-#define SPORT1_DMA3_RX_INT  (1<<11)
-#define SPORT1_DMA4_TX_INT  (1<<12)
-
-
-
-#define SPORT_DMA_I2S_RX_INIT       (0x01)
-#define SPORT_DMA_TDM_RX_INIT       (0x02)
-#define SPORT_DMA_I2S_TX_INIT       (0x04)
-#define SPORT_DMA_TDM_TX_INIT       (0x08)
-
-#define SPORT_DMA_MODE_NONE			(0)
-#define SPORT_DMA_MODE_I2S_RX		(1)
-#define SPORT_DMA_MODE_I2S_TX		(2)
-#define SPORT_DMA_MODE_TDM_PRI		(4)
-#define SPORT_DMA_MODE_TDM_SEC		(8)
-
-#define SPORT_DMA_READ              (0x01)
-#define SPORT_DMA_WRITE             (0x02)
-
-
-
-#define RX_BUFFER_NUM           (2)
-#define RX_WORDS_PER_FRAME      (2)
-#define RX_RAMES_PER_BLOCK      (32)
-#define RX_WORDS_PER_BLOCK      (RX_WORDS_PER_FRAME * RX_RAMES_PER_BLOCK)
-#define TX_BUFFER_NUM           (2)
-#define TX_WORDS_PER_FRAME      (2)
-#define TX_RAMES_PER_BLOCK      (32)
-#define TX_WORDS_PER_BLOCK      (TX_WORDS_PER_FRAME * TX_RAMES_PER_BLOCK)
-
 
 
 
@@ -126,12 +88,13 @@ typedef struct _tagSPORT_DMA_CONFIG
 } SPORT_DMA_CONFIG;
 
 
-typedef struct _tagSPORT_DMA_CONTEXT
+struct sport_ctx
 {
     uint16_t port_enabled;
     uint8_t  mode;       
     uint8_t  dir;     //the direction of transmit
-    volatile uint8_t  rxblk_ptr;
+
+	volatile uint8_t  rxblk_ptr;
     volatile uint8_t  txblk_ptr;
 
     SemaphoreHandle_t read_lock;
@@ -139,17 +102,8 @@ typedef struct _tagSPORT_DMA_CONTEXT
 
     SPORT_DMA_CONFIG  *dma;
     SPORT_PORT_CONFIG *port;
-}SPORT_DMA_CONTEXT;
+};
 
-
-extern SPORT_DMA_CONTEXT sport_ctx;
-extern int32_t AudioRxBuffer[RX_BUFFER_NUM][RX_WORDS_PER_BLOCK];
-extern int32_t AudioTxBuffer[TX_BUFFER_NUM][TX_WORDS_PER_BLOCK];
-
-
-int16_t sport_dma_init(SPORT_DMA_CONTEXT *pSportCtx, uint8_t option_flag, uint8_t port);
-int16_t sport_dma_enable(SPORT_DMA_CONTEXT *pSportCtx, uint8_t port);
-int16_t sport_dma_disable(SPORT_DMA_CONTEXT *pSportCtx, uint8_t port);
+extern const struct sport_ops sport_dev_api;
 
 #endif //__SPORT_DMA_H__
-

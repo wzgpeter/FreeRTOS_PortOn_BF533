@@ -10,171 +10,47 @@
 #include <defbf533.h>
 #include <string.h>
 #include <math.h>
+#include "sys_cfg.h"
+
 #include "clocks.h"
 #include "freeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 #include "sportTask.h"
 #include "sport_dma.h"
-
-
-#define SPORT0_REG_INIT \
-{                       \
-    pSPORT0_TCR1,       \
-    pSPORT0_TCR2,       \
-    pSPORT0_RCR1,       \
-    pSPORT0_RCR2,       \
-    pSPORT0_STAT,       \
-                        \
-    pSPORT0_TCLKDIV,    \
-    pSPORT0_RCLKDIV,    \
-    pSPORT0_TFSDIV,     \
-    pSPORT0_RFSDIV,     \
-                        \
-    pSPORT0_MCMC1,      \
-    pSPORT0_MCMC2,      \
-    pSPORT0_CHNL,       \
-                        \
-    pSPORT0_MRCS0,      \
-    pSPORT0_MRCS1,      \
-    pSPORT0_MRCS2,      \
-    pSPORT0_MRCS3,      \
-                        \
-    pSPORT0_MTCS0,      \
-    pSPORT0_MTCS1,      \
-    pSPORT0_MTCS2,      \
-    pSPORT0_MTCS3       \
-}
-
-
-#define SPORT1_REG_INIT \
-{                       \
-    pSPORT1_TCR1,       \
-    pSPORT1_TCR2,       \
-    pSPORT1_RCR1,       \
-    pSPORT1_RCR2,       \
-    pSPORT1_STAT,       \
-                        \
-    pSPORT1_TCLKDIV,    \
-    pSPORT1_RCLKDIV,    \
-    pSPORT1_TFSDIV,     \
-    pSPORT1_RFSDIV,     \
-                        \
-    pSPORT1_MCMC1,      \
-    pSPORT1_MCMC2,      \
-    pSPORT1_CHNL,       \
-                        \
-    pSPORT1_MRCS0,      \
-    pSPORT1_MRCS1,      \
-    pSPORT1_MRCS2,      \
-    pSPORT1_MRCS3,      \
-                        \
-    pSPORT1_MTCS0,      \
-    pSPORT1_MTCS1,      \
-    pSPORT1_MTCS2,      \
-    pSPORT1_MTCS3       \
-}
-
-
-
-#define SPORT0_DMA_INIT                 \
-{                                       \
-    ik_ivg9,                            \
-                                        \
-    /* RX DMA */                        \
-    pDMA1_CONFIG,                       \
-    (uint32_t *)pDMA1_NEXT_DESC_PTR,    \
-    (uint32_t *)pDMA1_START_ADDR,       \
-    pDMA1_X_COUNT,                      \
-    pDMA1_Y_COUNT,                      \
-    pDMA1_X_MODIFY,                     \
-    pDMA1_Y_MODIFY,                     \
-    (uint32_t *)pDMA1_CURR_DESC_PTR,    \
-    pDMA1_CURR_Y_COUNT,                 \
-    pDMA1_IRQ_STATUS,                   \
-                                        \
-    /* TX DMA */                        \
-    pDMA2_CONFIG,                       \
-    (uint32_t *)pDMA2_NEXT_DESC_PTR,    \
-    (uint32_t *)pDMA2_START_ADDR,       \
-    pDMA2_X_COUNT,                      \
-    pDMA2_Y_COUNT,                      \
-    pDMA2_X_MODIFY,                     \
-    pDMA2_Y_MODIFY,                     \
-    (uint32_t *)pDMA2_CURR_DESC_PTR,    \
-    pDMA2_CURR_Y_COUNT,                 \
-    pDMA2_IRQ_STATUS,                   \
-                                        \
-    pSIC_ISR,                           \
-    pSIC_IMASK,                         \
-    pDMA1_PERIPHERAL_MAP,               \
-    pSIC_ISR,                           \
-    pSIC_IMASK,                         \
-    pDMA2_PERIPHERAL_MAP,               \
-}
-
-#define SPORT1_DMA_INIT                 \
-{                                       \
-    ik_ivg9,                            \
-                                        \
-    /* RX DMA */                        \
-    pDMA3_CONFIG,                       \
-    (uint32_t *)pDMA3_NEXT_DESC_PTR,    \
-    (uint32_t *)pDMA3_START_ADDR,       \
-    pDMA3_X_COUNT,                      \
-    pDMA3_Y_COUNT,                      \
-    pDMA3_X_MODIFY,                     \
-    pDMA3_Y_MODIFY,                     \
-    (uint32_t *)pDMA3_CURR_DESC_PTR,    \
-    pDMA3_CURR_Y_COUNT,                 \
-    pDMA3_IRQ_STATUS,                   \
-                                        \
-    /* TX DMA */                        \
-    pDMA4_CONFIG,                       \
-    (uint32_t *)pDMA4_NEXT_DESC_PTR,    \
-    (uint32_t *)pDMA4_START_ADDR,       \
-    pDMA4_X_COUNT,                      \
-    pDMA4_Y_COUNT,                      \
-    pDMA4_X_MODIFY,                     \
-    pDMA4_Y_MODIFY,                     \
-    (uint32_t *)pDMA4_CURR_DESC_PTR,    \
-    pDMA4_CURR_Y_COUNT,                 \
-    pDMA4_IRQ_STATUS,                   \
-                                        \
-    pSIC_ISR,                           \
-    pSIC_IMASK,                         \
-    pDMA3_PERIPHERAL_MAP,               \
-    pSIC_ISR,                           \
-    pSIC_IMASK,                         \
-    pDMA4_PERIPHERAL_MAP,               \
-}
+#include "sport_api.h"
+#include "interrupt_register.h"
 
 
 int32_t AudioRxBuffer[RX_BUFFER_NUM][RX_WORDS_PER_BLOCK];
 int32_t AudioTxBuffer[TX_BUFFER_NUM][TX_WORDS_PER_BLOCK];
 
 
-static SPORT_PORT_CONFIG sport_port_cfg[NUM_PHYSICAL_SPORT_PORTS] =
-{
-    SPORT0_REG_INIT,
-    SPORT1_REG_INIT
-};
-
-
-static SPORT_DMA_CONFIG sport_dma_cfg[NUM_PHYSICAL_SPORT_PORTS] = 
-{
-    SPORT0_DMA_INIT,
-    SPORT1_DMA_INIT
-};
-
-SPORT_DMA_CONTEXT sport_ctx = {0};
-
-
 #ifndef MCMEN
 #define MCMEN		0x0010 	/*Multichannel Frame Mode Enable */
 #endif
 
+static void sport_dma_rx_isr(void *usr_data);
+static void sport_dma_tx_isr(void *usr_data);
 
+
+struct reg_interrupt_handler sport0_dma1_rx_int_cfg = 
+{
+	.ivg = ik_ivg9,
+	.sic_isr = pSIC_ISR,
+	.sic_imsk = pSIC_IMASK,
+	.fcn = sport_dma_rx_isr,
+	.usr_data = NULL,
+};
+
+struct reg_interrupt_handler sport0_dma2_tx_int_cfg = 
+{
+	.ivg = ik_ivg9,
+	.sic_isr = pSIC_ISR,
+	.sic_imsk = pSIC_IMASK,
+	.fcn = sport_dma_tx_isr,
+	.usr_data = NULL,
+};
 
 
 //*************************************************************************************
@@ -185,12 +61,12 @@ SPORT_DMA_CONTEXT sport_ctx = {0};
 static void sport_dma_rx_isr(void *usr_data)
 {
 	uint8_t err;
-    SPORT_DMA_CONTEXT *pSportCtx;
+    struct sport_ctx *pSportCtx;
     SPORT_DMA_CONFIG  *pDma;
     SPORT_PORT_CONFIG *pPort;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    pSportCtx = (SPORT_DMA_CONTEXT *)usr_data;
+    pSportCtx = (struct sport_ctx *)usr_data;
     pDma      = pSportCtx->dma;
     pPort     = pSportCtx->port;
    
@@ -220,12 +96,12 @@ static void sport_dma_rx_isr(void *usr_data)
 static void sport_dma_tx_isr(void *usr_data)
 {
     uint8_t err;
-    SPORT_DMA_CONTEXT *pSportCtx;
+    struct sport_ctx *pSportCtx;
     SPORT_DMA_CONFIG  *pDma;
     SPORT_PORT_CONFIG *pPort;
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    pSportCtx = (SPORT_DMA_CONTEXT *)usr_data;
+    pSportCtx = (struct sport_ctx *)usr_data;
     pDma      = pSportCtx->dma;
     pPort     = pSportCtx->port;
    
@@ -248,7 +124,7 @@ static void sport_dma_tx_isr(void *usr_data)
 }
 
 
-
+#if 0
 EX_INTERRUPT_HANDLER(sport_dma_isr)
 {
     uint32_t ipend;
@@ -256,29 +132,29 @@ EX_INTERRUPT_HANDLER(sport_dma_isr)
 
     SPORT_DMA_CONFIG  *pDma;
     SPORT_PORT_CONFIG *pPort;
-    pDma  = sport_ctx.dma;
-    pPort = sport_ctx.port;
+    pDma  = sport_dma.dma;
+    pPort = sport_dma.port;
 
     ipend = mmr_read32(pIPEND);
     sic_isr = mmr_read32(pDma->rx_sic.sic_isr);
 
     if(sic_isr & SPORT0_DMA1_RX_INT)
     {
-        sport_dma_rx_isr((void *)&sport_ctx);
+        sport_dma_rx_isr((void *)&sport_dma);
     }
     else if(sic_isr & SPORT0_DMA2_TX_INT)
     {
-        sport_dma_tx_isr((void *)&sport_ctx);
+        sport_dma_tx_isr((void *)&sport_dma);
     }
     else if(sic_isr & SPORT0_ERR_INT)
     {
         //TODO ...
     }
 }
+#endif
 
 
-
-static void sport_dma_clear(SPORT_DMA_CONTEXT *pSportCtx)
+static void sport_dma_clear(struct sport_ctx *pSportCtx)
 {
 	// reset SPORT
 	if (    (pSportCtx->mode & SPORT_DMA_MODE_I2S_RX)
@@ -328,48 +204,160 @@ static void sport_dma_clear(SPORT_DMA_CONTEXT *pSportCtx)
 		mmr_write16(pSportCtx->port->mcmc1, 0);
 		mmr_write16(pSportCtx->port->mcmc2, 0);
 	}
-
-    pSportCtx->rxblk_ptr = 1;
-    pSportCtx->txblk_ptr = 1;
-
+	
 	return;
 }
 
 
+static void sport_ioctl(struct sport_dev *dev, uint8_t cmd, uint32_t val)
+{
+	struct sport_ctx *pSportCtx = (struct sport_ctx *)dev->ctx;
+	
+	switch(cmd)
+	{	
+	case SPORT_INIT:
+		//sport_dma_init(pSportCtx, val);
+		pSportCtx->rxblk_ptr = 1;
+		pSportCtx->txblk_ptr = 1;
 
+		sport0_dma1_rx_int_cfg.usr_data = (void *)pSportCtx;
+		sport0_dma2_tx_int_cfg.usr_data = (void *)pSportCtx;
+		
+		mmr_write32(pSportCtx->dma->rx_sic.sic_imask,
+						mmr_read32(pSportCtx->dma->rx_sic.sic_imask) | DMA1_IRQ );
+		break;
+
+	case SPORT_CFG_PORT_RCR1:
+		mmr_write16( pSportCtx->port->rcr1, (uint16_t)val );
+		break;
+	case SPORT_CFG_PORT_RCR2:
+		mmr_write16( pSportCtx->port->rcr2, (uint16_t)val );
+		break;
+	case SPORT_CFG_PORT_TCR1:
+		mmr_write16( pSportCtx->port->tcr1, (uint16_t)val );
+		break;
+	case SPORT_CFG_PORT_TCR2:
+		mmr_write16( pSportCtx->port->tcr2, (uint16_t)val );
+		break;
+	case SPORT_CFG_PORT_MRCS0:
+		mmr_write32( pSportCtx->port->mrcs0, (uint32_t)val );
+		break;
+	case SPORT_CFG_PORT_MTCS0:
+		mmr_write32( pSportCtx->port->mtcs0, (uint32_t)val );
+		break;
+	case SPORT_CFG_PORT_MCMC1:
+		mmr_write16( pSportCtx->port->mcmc1, (uint16_t)val );
+		break;
+	case SPORT_CFG_PORT_MCMC2:
+		mmr_write16( pSportCtx->port->mcmc2, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_SADDR:
+		mmr_write32( pSportCtx->dma->rx_dma.start_addr, (uint32_t)val);
+		break;
+	case SPORT_CFG_DMA_RX_XCOUNT:
+		mmr_write16( pSportCtx->dma->rx_dma.x_count, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_XMODIFY:
+		mmr_write16( pSportCtx->dma->rx_dma.x_modify, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_YCOUNT:
+		mmr_write16( pSportCtx->dma->rx_dma.y_count, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_YMODIFY:
+		mmr_write16( pSportCtx->dma->rx_dma.y_modify, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_CONFIG:
+		mmr_write16( pSportCtx->dma->rx_dma.config, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_RX_PMAP:
+		mmr_write16( pSportCtx->dma->rx_sic.dma_pmap, (uint16_t)val );
+		break;
+	
+	case SPORT_CFG_DMA_TX_SADDR:
+		mmr_write32( pSportCtx->dma->tx_dma.start_addr, (uint32_t)val);
+		break;
+	case SPORT_CFG_DMA_TX_XCOUNT:
+		mmr_write16( pSportCtx->dma->tx_dma.x_count, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_TX_XMODIFY:
+		mmr_write16( pSportCtx->dma->tx_dma.x_modify, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_TX_YCOUNT:
+		mmr_write16( pSportCtx->dma->tx_dma.y_count, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_TX_YMODIFY:
+		mmr_write16( pSportCtx->dma->tx_dma.y_modify, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_TX_CONFIG:
+		mmr_write16( pSportCtx->dma->tx_dma.config, (uint16_t)val );
+		break;
+	case SPORT_CFG_DMA_TX_PMAP:
+		mmr_write16( pSportCtx->dma->tx_sic.dma_pmap, (uint16_t)val );
+		break;
+
+	case SPORT_MODE:
+		pSportCtx->mode = val;
+		break;
+	case SPORT_DIRT:
+		pSportCtx->dir = val;
+		break;
+
+	default:
+		break;
+	}
+}
+
+
+const struct sport_cfg sport0_rx_cfg[] =
+{
+	//PORT CFG
+	{SPORT_CFG_PORT_RCR1, (uint16_t)( RFSR | RCKFE)},
+	{SPORT_CFG_PORT_RCR2, (uint16_t)((SLEN&31) | RXSE | RSFSE )},
+	{SPORT_CFG_PORT_MRCS0, (uint32_t)0x00000000},
+	{SPORT_CFG_PORT_MCMC1, (uint16_t)0x0000},
+	{SPORT_CFG_PORT_MCMC2, (uint16_t)0x0000},
+	//DMA RX
+	{SPORT_CFG_DMA_RX_SADDR, (uint32_t)AudioRxBuffer},
+	{SPORT_CFG_DMA_RX_XCOUNT, RX_WORDS_PER_BLOCK},
+	{SPORT_CFG_DMA_RX_XMODIFY, 4},
+	{SPORT_CFG_DMA_RX_YCOUNT, RX_BUFFER_NUM},
+	{SPORT_CFG_DMA_RX_YMODIFY, 4},
+	{SPORT_CFG_DMA_RX_CONFIG, (uint16_t)(WNR | WDSIZE_32 | DI_EN | FLOW_AUTO | DI_SEL | DMA2D)},
+	{SPORT_CFG_DMA_RX_PMAP, PMAP_SPORT0RX},
+	{SPORT_CFG_END, 0},
+};
+
+const struct sport_cfg sport0_tx_cfg[] =
+{
+	//PORT CFG
+	{SPORT_CFG_PORT_TCR1, (uint16_t)(TFSR | TCKFE)},
+	{SPORT_CFG_PORT_TCR2, (uint16_t)((SLEN&31) | TXSE | TSFSE)},
+	{SPORT_CFG_PORT_MTCS0, (uint32_t)0x00000000},
+	{SPORT_CFG_PORT_MCMC1, (uint16_t)0x0000},
+	{SPORT_CFG_PORT_MCMC2, (uint16_t)0x0000},
+	//DMA TX
+	{SPORT_CFG_DMA_TX_SADDR, (uint32_t)AudioTxBuffer},
+	{SPORT_CFG_DMA_TX_XCOUNT, TX_WORDS_PER_BLOCK},
+	{SPORT_CFG_DMA_TX_XMODIFY, 4},
+	{SPORT_CFG_DMA_TX_YCOUNT, TX_BUFFER_NUM},
+	{SPORT_CFG_DMA_TX_YMODIFY, 4},
+	{SPORT_CFG_DMA_TX_CONFIG, (uint16_t)(WDSIZE_32 | FLOW_AUTO | DMA2D)},
+	{SPORT_CFG_DMA_TX_PMAP, PMAP_SPORT0TX},
+	{SPORT_CFG_END, 0},
+};
+
+#if 0
 //*************************************************************************************
 //* Function: sport_dma_init
 //* Description: initialize the sport dma module 
 //* Return: NONE
 //*************************************************************************************
-int16_t sport_dma_init(SPORT_DMA_CONTEXT *pSportCtx, uint8_t option_flag, uint8_t port)
+static void sport_dma_init(struct sport_ctx *pSportCtx, uint32_t port)
 {
     uint32_t i;
 
-
-    pSportCtx->dma  = &sport_dma_cfg[port];
-    pSportCtx->port = &sport_port_cfg[port];
-
-    pSportCtx->dir = SPORT_DMA_READ | SPORT_DMA_WRITE;
-
     //clear registers to initilization state
     sport_dma_clear(pSportCtx);
-
-    if( (option_flag & SPORT_DMA_I2S_RX_INIT)||
-        (option_flag & SPORT_DMA_TDM_RX_INIT) )
-    {
-        
-        //register the SPORT DMA rx ISR
-        register_handler_ex(pSportCtx->dma->ivg_level, (ex_handler_fn)sport_dma_isr, EX_INT_ENABLE);
-    }
-
-    if( (option_flag & SPORT_DMA_I2S_TX_INIT)||
-        (option_flag & SPORT_DMA_TDM_TX_INIT) )
-    {
-        
-        //register the SPORT DMA rx ISR
-        register_handler_ex(pSportCtx->dma->ivg_level, (ex_handler_fn)sport_dma_isr, EX_INT_ENABLE);
-    }
 
     mmr_write32(pSportCtx->dma->rx_sic.sic_imask,
                     mmr_read32(pSportCtx->dma->rx_sic.sic_imask) | DMA1_IRQ );
@@ -442,35 +430,38 @@ int16_t sport_dma_init(SPORT_DMA_CONTEXT *pSportCtx, uint8_t option_flag, uint8_
 
     //Map SPORT0 Transmit DMA
     mmr_write16( pSportCtx->dma->tx_sic.dma_pmap, (PMAP_SPORT0TX) );
-
-    return true;
 }
+#endif
 
-int16_t sport_dma_enable(SPORT_DMA_CONTEXT *pSportCtx, uint8_t port)
+static void sport_open(struct sport_dev *dev, uint8_t port)
 {
-    if( pSportCtx->mode & SPORT_DMA_MODE_I2S_RX )
-    {
-        mmr_write16( pSportCtx->dma->rx_dma.config, mmr_read16(pSportCtx->dma->rx_dma.config) | DMAEN );     
-        mmr_write16( pSportCtx->port->rcr1, mmr_read16(pSportCtx->port->rcr1) | RSPEN );
-    }
-   
+	struct sport_ctx *pSportCtx = (struct sport_ctx *)dev->ctx;
+
+	//enable Tx first
     if( pSportCtx->mode & SPORT_DMA_MODE_I2S_TX )
     {
         mmr_write16( pSportCtx->dma->tx_dma.config, mmr_read16(pSportCtx->dma->tx_dma.config) | DMAEN );     
         mmr_write16( pSportCtx->port->tcr1, mmr_read16(pSportCtx->port->tcr1) | TSPEN );
     }
-   
+
+	//enable Rx second
+    if( pSportCtx->mode & SPORT_DMA_MODE_I2S_RX )
+    {
+        mmr_write16( pSportCtx->dma->rx_dma.config, mmr_read16(pSportCtx->dma->rx_dma.config) | DMAEN );     
+        mmr_write16( pSportCtx->port->rcr1, mmr_read16(pSportCtx->port->rcr1) | RSPEN );
+    }
+
     if( pSportCtx->mode & SPORT_DMA_MODE_TDM_PRI )
     {
         mmr_write16( pSportCtx->dma->rx_dma.config, mmr_read16(pSportCtx->dma->rx_dma.config) | DMAEN );
         mmr_write16( pSportCtx->dma->tx_dma.config, mmr_read16(pSportCtx->dma->tx_dma.config) | DMAEN );
     }
-
-    return true;
 }
 
-int16_t sport_dma_disable(SPORT_DMA_CONTEXT *pSportCtx, uint8_t port)
+static void sport_close(struct sport_dev *dev, uint8_t port)
 {
+	struct sport_ctx *pSportCtx = (struct sport_ctx *)dev->ctx;
+	
     if( (SPORT_DMA_READ         == pSportCtx->dir) ||
         (SPORT_DMA_MODE_TDM_PRI == pSportCtx->mode) )
     {
@@ -484,6 +475,23 @@ int16_t sport_dma_disable(SPORT_DMA_CONTEXT *pSportCtx, uint8_t port)
         mmr_write16( pSportCtx->dma->tx_dma.config, mmr_read16(pSportCtx->dma->tx_dma.config) & ~DMAEN );
         mmr_write16( pSportCtx->port->tcr1, mmr_read16(pSportCtx->port->tcr1) & ~TSPEN );
     }
-
-    return true;
 }
+
+static void sport_read(struct sport_dev *dev, uint8_t *buf, uint32_t len)
+{
+	struct sport_ctx *pSportCtx = (struct sport_ctx *)dev->ctx;
+}
+
+static void sport_write(struct sport_dev *dev, uint8_t *buf, uint32_t len)
+{
+	struct sport_ctx *pSportCtx = (struct sport_ctx *)dev->ctx;
+}
+
+const struct sport_ops sport_dev_api = {
+    .open = sport_open,
+    .close = sport_close,
+    .read = sport_read,
+    .write = sport_write,
+    .ioctl = sport_ioctl,
+};
+
